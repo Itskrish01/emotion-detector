@@ -1,6 +1,9 @@
-import { useState, useEffect, type JSX } from 'react'
+import { useState, useEffect } from 'react'
 import { EmotionAnalyzer } from 'emotion-detector-js'
-// @ts-ignore
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import readmeContent from '../README.md?raw'
 
 // Initialize the analyzer
@@ -25,12 +28,216 @@ const emotionEmojis: Record<string, string> = {
   neutral: '😐',
 }
 
-// Copy Button Component
-const CopyButton = ({ text, className = "" }: { text: string, className?: string }) => {
+// Code Block Component with Copy Button
+const CodeBlock = ({ children, className }: { children: string, className?: string }) => {
   const [copied, setCopied] = useState(false)
+  const match = /language-(\w+)/.exec(className || '')
+  const language = match ? match[1] : 'text'
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(children)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="my-4 sm:my-6 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 overflow-hidden shadow-sm group">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-zinc-200 bg-zinc-100/50">
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+          </div>
+          <span className="text-xs font-mono font-medium text-zinc-500 uppercase tracking-wider">{language}</span>
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-white border border-zinc-200 rounded-md shadow-sm hover:bg-zinc-50 transition-all text-xs font-medium"
+        >
+          {copied ? (
+            <>
+              <svg className="h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-emerald-600 hidden sm:inline">Copied!</span>
+            </>
+          ) : (
+            <>
+              <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <span className="text-zinc-500 hidden sm:inline">Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <SyntaxHighlighter
+          style={oneLight}
+          language={language}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            padding: '1rem',
+            background: 'white',
+            fontSize: '0.8125rem',
+            lineHeight: '1.6',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace',
+            }
+          }}
+        >
+          {children}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  )
+}
+
+// Markdown Renderer Component using react-markdown
+const MarkdownRenderer = ({ content }: { content: string }) => {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Headers
+        h1: ({ children }) => (
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-zinc-950 mt-10 sm:mt-16 mb-6 sm:mb-8 pb-3 sm:pb-4 border-b border-zinc-200">
+            {children}
+          </h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-950 mt-8 sm:mt-12 mb-4 sm:mb-6 flex items-center gap-2">
+            <span className="text-zinc-300 text-lg sm:text-xl hidden sm:inline">#</span> {children}
+          </h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-lg sm:text-xl font-semibold text-zinc-900 mt-6 sm:mt-8 mb-3 sm:mb-4">
+            {children}
+          </h3>
+        ),
+        h4: ({ children }) => (
+          <h4 className="text-base sm:text-lg font-medium text-zinc-900 mt-4 sm:mt-6 mb-2 sm:mb-3">
+            {children}
+          </h4>
+        ),
+        // Paragraph
+        p: ({ children }) => (
+          <p className="text-zinc-600 text-sm sm:text-base leading-6 sm:leading-7 mb-3 sm:mb-4">
+            {children}
+          </p>
+        ),
+        // Links
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all"
+          >
+            {children}
+          </a>
+        ),
+        // Lists
+        ul: ({ children }) => (
+          <ul className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1">
+            {children}
+          </ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1 list-decimal list-inside">
+            {children}
+          </ol>
+        ),
+        li: ({ children }) => (
+          <li className="text-zinc-600 text-sm sm:text-base relative pl-4 sm:pl-6">
+            <span className="absolute left-0 top-2 sm:top-2.5 w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+            {children}
+          </li>
+        ),
+        // Inline code
+        code: ({ className, children }) => {
+          const isCodeBlock = className?.includes('language-')
+          const codeString = String(children).replace(/\n$/, '')
+          
+          if (isCodeBlock) {
+            return <CodeBlock className={className}>{codeString}</CodeBlock>
+          }
+          
+          return (
+            <code className="px-1 sm:px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs sm:text-sm font-mono text-zinc-800">
+              {children}
+            </code>
+          )
+        },
+        // Pre tag for code blocks
+        pre: ({ children }) => <>{children}</>,
+        // Strong/Bold
+        strong: ({ children }) => (
+          <strong className="font-semibold text-zinc-950">{children}</strong>
+        ),
+        // Emphasis/Italic
+        em: ({ children }) => (
+          <em className="italic text-zinc-700">{children}</em>
+        ),
+        // Blockquote
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-zinc-300 pl-3 sm:pl-4 py-1 my-4 sm:my-6 text-zinc-600 italic bg-zinc-50 rounded-r-lg">
+            {children}
+          </blockquote>
+        ),
+        // Horizontal rule
+        hr: () => <hr className="my-6 sm:my-8 border-zinc-200" />,
+        // Table
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-4 sm:my-6 -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table className="min-w-full divide-y divide-zinc-200 border border-zinc-200 rounded-lg overflow-hidden text-sm">
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-zinc-50">{children}</thead>
+        ),
+        tbody: ({ children }) => (
+          <tbody className="divide-y divide-zinc-100 bg-white">{children}</tbody>
+        ),
+        tr: ({ children }) => <tr>{children}</tr>,
+        th: ({ children }) => (
+          <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-zinc-900 uppercase tracking-wider whitespace-nowrap">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="px-3 sm:px-4 py-2 sm:py-3 text-zinc-600 text-xs sm:text-sm">
+            {children}
+          </td>
+        ),
+        // Images
+        img: ({ src, alt }) => (
+          <img
+            src={src}
+            alt={alt || ''}
+            className="rounded-lg shadow-sm border border-zinc-200 my-4 sm:my-6 max-w-full h-auto"
+          />
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+}
+
+// Install Command Copy Button Component
+const InstallCopyButton = () => {
+  const [copied, setCopied] = useState(false)
+  const command = 'npm install emotion-detector-js'
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(command)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -38,223 +245,29 @@ const CopyButton = ({ text, className = "" }: { text: string, className?: string
   return (
     <button
       onClick={handleCopy}
-      className={`group relative inline-flex items-center justify-center rounded-lg transition-all ${className}`}
-      aria-label="Copy to clipboard"
+      className="group relative flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 bg-zinc-50 rounded-xl border border-zinc-200 font-mono text-xs sm:text-sm text-zinc-600 shadow-sm hover:border-zinc-300 transition-all cursor-pointer w-full sm:w-auto justify-center sm:justify-start"
     >
-      {copied ? (
-        <span className="flex items-center gap-1.5 text-zinc-950 font-medium">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          <span className="text-xs">Copied!</span>
-        </span>
-      ) : (
-        <span className="flex items-center gap-1.5 text-zinc-500 group-hover:text-zinc-950 transition-colors">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          <span className="text-xs font-medium">Copy</span>
-        </span>
-      )}
+      <span className="text-zinc-400 select-none">$</span>
+      <span className="select-all truncate">{command}</span>
+      <span className={`ml-1 sm:ml-2 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${copied ? 'bg-emerald-100 text-emerald-700' : 'bg-white border border-zinc-200 text-zinc-500 group-hover:text-zinc-700'}`}>
+        {copied ? (
+          <>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="hidden sm:inline">Copied!</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span className="hidden sm:inline">Copy</span>
+          </>
+        )}
+      </span>
     </button>
   )
-}
-
-// Syntax Highlighting Helper
-const highlightCode = (code: string) => {
-  // Escape HTML entities first
-  const escaped = code
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-  // Combined regex for tokenization
-  // Order: Comments, Strings, Keywords, Functions, Numbers
-  const tokenRegex = /(\/\/.*)|(['"`])(.*?)\2|(\b(?:import|from|const|let|var|async|await|function|return|class|interface|type|export|default|new|try|catch|finally|if|else|for|while|switch|case|break|continue)\b)|(\b[a-zA-Z]\w*)(?=\()|(\b\d+\b)/g
-
-  const html = escaped.replace(tokenRegex, (match, comment, quote, _stringContent, keyword, func, number) => {
-    if (comment) return `<span class="text-zinc-400 italic">${comment}</span>`
-    if (quote) return `<span class="text-zinc-600 font-medium">${match}</span>`
-    if (keyword) return `<span class="text-zinc-950 font-bold">${keyword}</span>`
-    if (func) return `<span class="text-zinc-800 font-semibold">${func}</span>`
-    if (number) return `<span class="text-zinc-500">${number}</span>`
-    return match
-  })
-
-  return <code dangerouslySetInnerHTML={{ __html: html }} />
-}
-
-// Custom Markdown Renderer Component
-const MarkdownRenderer = ({ content }: { content: string }) => {
-  const [sections, setSections] = useState<JSX.Element[]>([])
-
-  useEffect(() => {
-    const parseMarkdown = (text: string) => {
-      const lines = text.split('\n')
-      const elements: JSX.Element[] = []
-      let currentKey = 0
-      let inCodeBlock = false
-      let codeBlockContent: string[] = []
-      let codeBlockLang = ''
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-
-        // Handle Code Blocks
-        if (line.trim().startsWith('```')) {
-          if (inCodeBlock) {
-            // End of code block
-            const code = codeBlockContent.join('\n')
-            elements.push(
-              <div key={`code-${currentKey++}`} className="my-8 rounded-xl bg-zinc-50 border border-zinc-200 overflow-hidden shadow-sm group">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 bg-zinc-100/50">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
-                    </div>
-                    <span className="ml-2 text-xs font-mono font-medium text-zinc-500 uppercase tracking-wider">{codeBlockLang || 'TEXT'}</span>
-                  </div>
-                  <CopyButton text={code} className="bg-white px-3 py-1.5 border border-zinc-200 shadow-sm hover:bg-zinc-50" />
-                </div>
-                <div className="p-5 overflow-x-auto bg-white">
-                  <pre className="text-sm font-mono text-zinc-700 leading-relaxed">
-                    {highlightCode(code)}
-                  </pre>
-                </div>
-              </div>
-            )
-            codeBlockContent = []
-            inCodeBlock = false
-          } else {
-            // Start of code block
-            inCodeBlock = true
-            codeBlockLang = line.trim().slice(3)
-          }
-          continue
-        }
-
-        if (inCodeBlock) {
-          codeBlockContent.push(line)
-          continue
-        }
-
-        // Handle Headers
-        if (line.startsWith('# ')) {
-          elements.push(
-            <h1 key={`h1-${currentKey++}`} className="text-4xl font-bold tracking-tight text-zinc-950 mt-16 mb-8 pb-4 border-b border-zinc-200">
-              {line.slice(2)}
-            </h1>
-          )
-        } else if (line.startsWith('## ')) {
-          elements.push(
-            <h2 key={`h2-${currentKey++}`} className="text-2xl font-bold tracking-tight text-zinc-950 mt-12 mb-6 flex items-center gap-2">
-              <span className="text-zinc-300 text-xl">#</span> {line.slice(3)}
-            </h2>
-          )
-        } else if (line.startsWith('### ')) {
-          elements.push(
-            <h3 key={`h3-${currentKey++}`} className="text-xl font-semibold text-zinc-900 mt-8 mb-4">
-              {line.slice(4)}
-            </h3>
-          )
-        } else if (line.startsWith('#### ')) {
-          elements.push(
-            <h4 key={`h4-${currentKey++}`} className="text-lg font-medium text-zinc-900 mt-6 mb-3">
-              {line.slice(5)}
-            </h4>
-          )
-        }
-        // Handle Lists
-        else if (line.trim().startsWith('- ')) {
-          const content = line.trim().slice(2)
-          const parsedContent = content.split(/(\*\*\[.*?\]\(.*?\)\*\*)|(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean).map((part, idx) => {
-            // Handle bold links: **[text](url)**
-            if (part.startsWith('**[') && part.endsWith(')**')) {
-              const inner = part.slice(2, -2) // Remove ** from both ends
-              const [text, url] = inner.slice(1, -1).split('](')
-              return (
-                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-semibold underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
-                  {text}
-                </a>
-              )
-            }
-            if (part.startsWith('[') && part.includes('](')) {
-              const [text, url] = part.slice(1, -1).split('](')
-              return (
-                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
-                  {text}
-                </a>
-              )
-            }
-            if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-semibold text-zinc-950">{part.slice(2, -2)}</strong>
-            if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-sm font-mono text-zinc-800">{part.slice(1, -1)}</code>
-            return part
-          })
-
-          elements.push(
-            <li key={`li-${currentKey++}`} className="ml-4 list-none relative pl-6 mb-2 text-zinc-600">
-              <span className="absolute left-0 top-2 w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
-              {parsedContent}
-            </li>
-          )
-        }
-        // Handle Tables
-        else if (line.includes('|') && line.trim().startsWith('|')) {
-          if (line.includes('---')) continue;
-          const cells = line.split('|').filter(c => c.trim()).map(c => c.trim())
-          elements.push(
-            <div key={`table-row-${currentKey++}`} className="grid grid-cols-3 gap-4 py-3 border-b border-zinc-100 last:border-0 text-sm">
-              {cells.map((cell, idx) => (
-                <div key={idx} className={`${i > 0 && lines[i - 1].includes('---') ? 'text-zinc-500 font-normal' : 'font-semibold text-zinc-900'}`}>
-                  {cell}
-                </div>
-              ))}
-            </div>
-          )
-        }
-        // Handle Paragraphs
-        else if (line.trim() !== '') {
-          const parts = line.split(/(\*\*\[.*?\]\(.*?\)\*\*)|(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean)
-          const parsedLine = parts.map((part, idx) => {
-            // Handle bold links: **[text](url)**
-            if (part.startsWith('**[') && part.endsWith(')**')) {
-              const inner = part.slice(2, -2) // Remove ** from both ends
-              const [text, url] = inner.slice(1, -1).split('](')
-              return (
-                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-semibold underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
-                  {text}
-                </a>
-              )
-            }
-            if (part.startsWith('[') && part.includes('](')) {
-              const [text, url] = part.slice(1, -1).split('](')
-              return (
-                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
-                  {text}
-                </a>
-              )
-            }
-            if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-semibold text-zinc-950">{part.slice(2, -2)}</strong>
-            if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-sm font-mono text-zinc-800">{part.slice(1, -1)}</code>
-            return part
-          })
-
-          elements.push(
-            <p key={`p-${currentKey++}`} className="text-zinc-600 leading-7 mb-4">
-              {parsedLine}
-            </p>
-          )
-        }
-      }
-      setSections(elements)
-    }
-
-    parseMarkdown(content)
-  }, [content])
-
-  return <div className="space-y-1">{sections}</div>
 }
 
 function App() {
@@ -314,8 +327,8 @@ function App() {
     try {
       const res = await analyzer.analyze(text)
       setResult(res)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -383,55 +396,50 @@ function App() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
-          <div className="grid lg:grid-cols-12 gap-16 items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-16 items-center">
             {/* Left Content */}
             <div className="lg:col-span-6 text-center lg:text-left">
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-zinc-950 mb-8 leading-[1.1]">
-                Emotion detection <br className="hidden lg:block" />
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tight text-zinc-950 mb-4 sm:mb-6 lg:mb-8 leading-[1.1]">
+                Emotion detection <br className="hidden sm:block" />
                 <span className="text-zinc-400">made simple.</span>
               </h1>
-              <p className="text-xl text-zinc-600 mb-10 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-light">
+              <p className="text-base sm:text-lg lg:text-xl text-zinc-600 mb-6 sm:mb-8 lg:mb-10 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-light">
                 A lightweight, zero-dependency TypeScript client for accurate emotion analysis.
                 Seamlessly works in Node.js and browsers.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                <div className="group relative flex items-center gap-3 px-5 py-3 bg-zinc-50 rounded-xl border border-zinc-200 font-mono text-sm text-zinc-600 shadow-sm hover:border-zinc-300 transition-all cursor-pointer"
-                  onClick={() => navigator.clipboard.writeText('npm install emotion-detector-js')}>
-                  <span className="text-zinc-400 select-none">$</span>
-                  <span className="select-all">npm install emotion-detector-js</span>
-                  <CopyButton text="npm install emotion-detector-js" className="ml-2 p-1.5 bg-white border border-zinc-200 rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
+                <InstallCopyButton />
               </div>
             </div>
 
             {/* Interactive Demo Card */}
             <div id="demo" className="lg:col-span-6">
-      <div className="relative rounded-2xl bg-white shadow-2xl border border-zinc-200 overflow-hidden ring-1 ring-zinc-950/5">
-        <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3 flex items-center justify-between">
+      <div className="relative rounded-xl sm:rounded-2xl bg-white shadow-xl sm:shadow-2xl border border-zinc-200 overflow-hidden ring-1 ring-zinc-950/5">
+        <div className="bg-zinc-50 border-b border-zinc-200 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
           <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
-            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
-            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
           </div>
           <div className="text-xs font-mono text-zinc-400">playground.ts</div>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type something emotional here..."
-            className="w-full h-32 p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent transition-all resize-none font-medium"
+            className="w-full h-24 sm:h-32 p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-lg sm:rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent transition-all resize-none font-medium text-sm sm:text-base"
           />
 
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-xs text-zinc-400 font-medium">Press Ctrl+Enter to analyze</span>
+          <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
+            <span className="text-xs text-zinc-400 font-medium text-center sm:text-left hidden sm:block">Press Ctrl+Enter to analyze</span>
             <button
               onClick={analyzeEmotion}
               disabled={loading || !text.trim()}
-              className="px-5 py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-2"
+              className="px-4 sm:px-5 py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               {loading ? 'Analyzing...' : 'Analyze Text'}
             </button>
@@ -444,29 +452,29 @@ function App() {
           )}
 
           {result && (
-            <div className="mt-6 pt-6 border-t border-zinc-100 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center gap-5 mb-6">
-                <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-3xl shadow-sm">
+            <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-zinc-100 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-3 sm:gap-5 mb-4 sm:mb-6">
+                <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-2xl sm:text-3xl shadow-sm shrink-0">
                   {emotionEmojis[result.primaryEmotion] || '🤔'}
                 </div>
-                <div>
-                  <div className="text-xs text-zinc-400 font-bold uppercase tracking-widest mb-1">Primary Emotion</div>
-                  <div className="text-2xl font-bold text-zinc-950 capitalize">{result.primaryEmotion}</div>
-                  <div className="text-sm text-zinc-500 font-medium mt-0.5">{(result.confidence * 100).toFixed(1)}% Confidence</div>
+                <div className="min-w-0">
+                  <div className="text-[10px] sm:text-xs text-zinc-400 font-bold uppercase tracking-widest mb-0.5 sm:mb-1">Primary Emotion</div>
+                  <div className="text-lg sm:text-2xl font-bold text-zinc-950 capitalize truncate">{result.primaryEmotion}</div>
+                  <div className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">{(result.confidence * 100).toFixed(1)}% Confidence</div>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {result.allEmotions
                   .sort((a, b) => b.score - a.score)
                   .slice(0, 3)
                   .map((item) => (
                     <div key={item.emotion} className="group">
-                      <div className="flex justify-between text-sm mb-1.5">
+                      <div className="flex justify-between text-xs sm:text-sm mb-1 sm:mb-1.5">
                         <span className="font-medium text-zinc-700 capitalize">{item.emotion}</span>
-                        <span className="text-zinc-500 font-mono text-xs">{(item.score * 100).toFixed(1)}%</span>
+                        <span className="text-zinc-500 font-mono text-[10px] sm:text-xs">{(item.score * 100).toFixed(1)}%</span>
                       </div>
-                      <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 sm:h-2 bg-zinc-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-zinc-900 rounded-full transition-all duration-500"
                           style={{ width: `${item.score * 100}%` }}
@@ -485,7 +493,7 @@ function App() {
       </section>
 
       {/* Documentation Section (Dynamic README) */}
-      <section id="documentation" className="py-24 bg-white">
+      <section id="documentation" className="py-12 sm:py-16 lg:py-24 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="prose prose-zinc max-w-none">
             <MarkdownRenderer content={readmeContent} />
@@ -494,20 +502,20 @@ function App() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-zinc-50 border-t border-zinc-200 py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <footer className="bg-zinc-50 border-t border-zinc-200 py-4 sm:py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <div className="flex h-5 w-5 items-center justify-center rounded bg-zinc-950 text-white text-[10px] font-bold">
               ED
             </div>
-            <span className="text-sm font-medium text-zinc-700">emotion-detector-js</span>
+            <span className="text-xs sm:text-sm font-medium text-zinc-700">emotion-detector-js</span>
           </div>
-          <div className="flex items-center gap-5 text-sm text-zinc-500">
+          <div className="flex items-center gap-4 sm:gap-5 text-xs sm:text-sm text-zinc-500">
             <a href="https://www.npmjs.com/package/emotion-detector-js" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">NPM</a>
             <a href="https://github.com/Itskrish01/emotion-detector-js" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">GitHub</a>
             <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">Model</a>
           </div>
-          <p className="text-sm text-zinc-400">
+          <p className="text-xs sm:text-sm text-zinc-400 text-center">
             © {new Date().getFullYear()} <a href="https://krishtasood.in" target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-900 transition-colors">itskrish01</a>. MIT License.
           </p>
         </div>
