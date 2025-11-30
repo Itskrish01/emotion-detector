@@ -19,7 +19,7 @@ An AI-powered web application that analyzes the emotional tone of text using adv
 
 ## 🚀 Live Demo
 
-**[Try the Emotion Analyzer →](https://emotion-detector-zeta.vercel.app/)**
+**[Try the Emotion Analyzer →](https://text-emotion-detector.netlify.app/)**
 
 ## 🛠️ Tech Stack
 
