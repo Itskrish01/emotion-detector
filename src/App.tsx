@@ -169,7 +169,25 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
         // Handle Lists
         else if (line.trim().startsWith('- ')) {
           const content = line.trim().slice(2)
-          const parsedContent = content.split(/(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean).map((part, idx) => {
+          const parsedContent = content.split(/(\*\*\[.*?\]\(.*?\)\*\*)|(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean).map((part, idx) => {
+            // Handle bold links: **[text](url)**
+            if (part.startsWith('**[') && part.endsWith(')**')) {
+              const inner = part.slice(2, -2) // Remove ** from both ends
+              const [text, url] = inner.slice(1, -1).split('](')
+              return (
+                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-semibold underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
+                  {text}
+                </a>
+              )
+            }
+            if (part.startsWith('[') && part.includes('](')) {
+              const [text, url] = part.slice(1, -1).split('](')
+              return (
+                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
+                  {text}
+                </a>
+              )
+            }
             if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-semibold text-zinc-950">{part.slice(2, -2)}</strong>
             if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-sm font-mono text-zinc-800">{part.slice(1, -1)}</code>
             return part
@@ -198,12 +216,22 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
         }
         // Handle Paragraphs
         else if (line.trim() !== '') {
-          const parts = line.split(/(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean)
+          const parts = line.split(/(\*\*\[.*?\]\(.*?\)\*\*)|(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean)
           const parsedLine = parts.map((part, idx) => {
+            // Handle bold links: **[text](url)**
+            if (part.startsWith('**[') && part.endsWith(')**')) {
+              const inner = part.slice(2, -2) // Remove ** from both ends
+              const [text, url] = inner.slice(1, -1).split('](')
+              return (
+                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-semibold underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
+                  {text}
+                </a>
+              )
+            }
             if (part.startsWith('[') && part.includes('](')) {
               const [text, url] = part.slice(1, -1).split('](')
               return (
-                <a key={idx} href={url} className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
+                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
                   {text}
                 </a>
               )
