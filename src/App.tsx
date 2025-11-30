@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect, type JSX } from 'react'
+import { EmotionAnalyzer } from 'emotion-detector-js'
+// @ts-ignore
+import readmeContent from '../README.md?raw'
 
-interface EmotionScore {
-  emotion: string
-  score: number
-}
+// Initialize the analyzer
+const analyzer = new EmotionAnalyzer()
 
-interface AnalysisResult {
-  primary_emotion: string
+interface EmotionResult {
+  primaryEmotion: string
   confidence: number
-  all_emotions: EmotionScore[]
+  allEmotions: {
+    emotion: string
+    score: number
+  }[]
 }
 
 const emotionEmojis: Record<string, string> = {
@@ -21,68 +25,269 @@ const emotionEmojis: Record<string, string> = {
   neutral: '😐',
 }
 
-const emotionDescriptions: Record<string, string> = {
-  joy: 'Feeling happy and delighted',
-  sadness: 'Feeling down or melancholic',
-  anger: 'Feeling frustrated or upset',
-  fear: 'Feeling anxious or worried',
-  surprise: 'Feeling amazed or astonished',
-  disgust: 'Feeling repulsed or averse',
-  neutral: 'Calm and balanced tone',
+// Copy Button Component
+const CopyButton = ({ text, className = "" }: { text: string, className?: string }) => {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`group relative inline-flex items-center justify-center rounded-lg transition-all ${className}`}
+      aria-label="Copy to clipboard"
+    >
+      {copied ? (
+        <span className="flex items-center gap-1.5 text-zinc-950 font-medium">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-xs">Copied!</span>
+        </span>
+      ) : (
+        <span className="flex items-center gap-1.5 text-zinc-500 group-hover:text-zinc-950 transition-colors">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span className="text-xs font-medium">Copy</span>
+        </span>
+      )}
+    </button>
+  )
+}
+
+// Syntax Highlighting Helper
+const highlightCode = (code: string) => {
+  // Escape HTML entities first
+  const escaped = code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Combined regex for tokenization
+  // Order: Comments, Strings, Keywords, Functions, Numbers
+  const tokenRegex = /(\/\/.*)|(['"`])(.*?)\2|(\b(?:import|from|const|let|var|async|await|function|return|class|interface|type|export|default|new|try|catch|finally|if|else|for|while|switch|case|break|continue)\b)|(\b[a-zA-Z]\w*)(?=\()|(\b\d+\b)/g
+
+  const html = escaped.replace(tokenRegex, (match, comment, quote, _stringContent, keyword, func, number) => {
+    if (comment) return `<span class="text-zinc-400 italic">${comment}</span>`
+    if (quote) return `<span class="text-zinc-600 font-medium">${match}</span>`
+    if (keyword) return `<span class="text-zinc-950 font-bold">${keyword}</span>`
+    if (func) return `<span class="text-zinc-800 font-semibold">${func}</span>`
+    if (number) return `<span class="text-zinc-500">${number}</span>`
+    return match
+  })
+
+  return <code dangerouslySetInnerHTML={{ __html: html }} />
+}
+
+// Custom Markdown Renderer Component
+const MarkdownRenderer = ({ content }: { content: string }) => {
+  const [sections, setSections] = useState<JSX.Element[]>([])
+
+  useEffect(() => {
+    const parseMarkdown = (text: string) => {
+      const lines = text.split('\n')
+      const elements: JSX.Element[] = []
+      let currentKey = 0
+      let inCodeBlock = false
+      let codeBlockContent: string[] = []
+      let codeBlockLang = ''
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+
+        // Handle Code Blocks
+        if (line.trim().startsWith('```')) {
+          if (inCodeBlock) {
+            // End of code block
+            const code = codeBlockContent.join('\n')
+            elements.push(
+              <div key={`code-${currentKey++}`} className="my-8 rounded-xl bg-zinc-50 border border-zinc-200 overflow-hidden shadow-sm group">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-200 bg-zinc-100/50">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-zinc-300"></div>
+                    </div>
+                    <span className="ml-2 text-xs font-mono font-medium text-zinc-500 uppercase tracking-wider">{codeBlockLang || 'TEXT'}</span>
+                  </div>
+                  <CopyButton text={code} className="bg-white px-3 py-1.5 border border-zinc-200 shadow-sm hover:bg-zinc-50" />
+                </div>
+                <div className="p-5 overflow-x-auto bg-white">
+                  <pre className="text-sm font-mono text-zinc-700 leading-relaxed">
+                    {highlightCode(code)}
+                  </pre>
+                </div>
+              </div>
+            )
+            codeBlockContent = []
+            inCodeBlock = false
+          } else {
+            // Start of code block
+            inCodeBlock = true
+            codeBlockLang = line.trim().slice(3)
+          }
+          continue
+        }
+
+        if (inCodeBlock) {
+          codeBlockContent.push(line)
+          continue
+        }
+
+        // Handle Headers
+        if (line.startsWith('# ')) {
+          elements.push(
+            <h1 key={`h1-${currentKey++}`} className="text-4xl font-bold tracking-tight text-zinc-950 mt-16 mb-8 pb-4 border-b border-zinc-200">
+              {line.slice(2)}
+            </h1>
+          )
+        } else if (line.startsWith('## ')) {
+          elements.push(
+            <h2 key={`h2-${currentKey++}`} className="text-2xl font-bold tracking-tight text-zinc-950 mt-12 mb-6 flex items-center gap-2">
+              <span className="text-zinc-300 text-xl">#</span> {line.slice(3)}
+            </h2>
+          )
+        } else if (line.startsWith('### ')) {
+          elements.push(
+            <h3 key={`h3-${currentKey++}`} className="text-xl font-semibold text-zinc-900 mt-8 mb-4">
+              {line.slice(4)}
+            </h3>
+          )
+        } else if (line.startsWith('#### ')) {
+          elements.push(
+            <h4 key={`h4-${currentKey++}`} className="text-lg font-medium text-zinc-900 mt-6 mb-3">
+              {line.slice(5)}
+            </h4>
+          )
+        }
+        // Handle Lists
+        else if (line.trim().startsWith('- ')) {
+          const content = line.trim().slice(2)
+          const parsedContent = content.split(/(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean).map((part, idx) => {
+            if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-semibold text-zinc-950">{part.slice(2, -2)}</strong>
+            if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-sm font-mono text-zinc-800">{part.slice(1, -1)}</code>
+            return part
+          })
+
+          elements.push(
+            <li key={`li-${currentKey++}`} className="ml-4 list-none relative pl-6 mb-2 text-zinc-600">
+              <span className="absolute left-0 top-2 w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+              {parsedContent}
+            </li>
+          )
+        }
+        // Handle Tables
+        else if (line.includes('|') && line.trim().startsWith('|')) {
+          if (line.includes('---')) continue;
+          const cells = line.split('|').filter(c => c.trim()).map(c => c.trim())
+          elements.push(
+            <div key={`table-row-${currentKey++}`} className="grid grid-cols-3 gap-4 py-3 border-b border-zinc-100 last:border-0 text-sm">
+              {cells.map((cell, idx) => (
+                <div key={idx} className={`${i > 0 && lines[i - 1].includes('---') ? 'text-zinc-500 font-normal' : 'font-semibold text-zinc-900'}`}>
+                  {cell}
+                </div>
+              ))}
+            </div>
+          )
+        }
+        // Handle Paragraphs
+        else if (line.trim() !== '') {
+          const parts = line.split(/(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(`.*?`)/g).filter(Boolean)
+          const parsedLine = parts.map((part, idx) => {
+            if (part.startsWith('[') && part.includes('](')) {
+              const [text, url] = part.slice(1, -1).split('](')
+              return (
+                <a key={idx} href={url} className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all">
+                  {text}
+                </a>
+              )
+            }
+            if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-semibold text-zinc-950">{part.slice(2, -2)}</strong>
+            if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-sm font-mono text-zinc-800">{part.slice(1, -1)}</code>
+            return part
+          })
+
+          elements.push(
+            <p key={`p-${currentKey++}`} className="text-zinc-600 leading-7 mb-4">
+              {parsedLine}
+            </p>
+          )
+        }
+      }
+      setSections(elements)
+    }
+
+    parseMarkdown(content)
+  }, [content])
+
+  return <div className="space-y-1">{sections}</div>
 }
 
 function App() {
   const [text, setText] = useState('')
-  const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [result, setResult] = useState<EmotionResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [npmVersion, setNpmVersion] = useState<string>('1.0.1')
+
+  // Fetch npm version with caching
+  useEffect(() => {
+    const fetchNpmVersion = async () => {
+      const CACHE_KEY = 'emotion-detector-npm-version'
+      const CACHE_TIMESTAMP_KEY = 'emotion-detector-npm-version-timestamp'
+      const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
+
+      try {
+        // Check cache
+        const cachedVersion = localStorage.getItem(CACHE_KEY)
+        const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY)
+
+        if (cachedVersion && cachedTimestamp) {
+          const age = Date.now() - parseInt(cachedTimestamp, 10)
+          if (age < CACHE_DURATION) {
+            setNpmVersion(cachedVersion)
+            return
+          }
+        }
+
+        // Fetch from npm registry
+        const response = await fetch('https://registry.npmjs.org/emotion-detector-js')
+        if (response.ok) {
+          const data = await response.json()
+          const latestVersion = data['dist-tags']?.latest || '1.0.1'
+
+          // Update cache
+          localStorage.setItem(CACHE_KEY, latestVersion)
+          localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString())
+          setNpmVersion(latestVersion)
+        }
+      } catch (err) {
+        // Silently fail and use cached or default version
+        console.error('Failed to fetch npm version:', err)
+      }
+    }
+
+    fetchNpmVersion()
+  }, [])
 
   const analyzeEmotion = async () => {
-    if (!text.trim()) {
-      setError('Please enter some text to analyze')
-      return
-    }
+    if (!text.trim()) return
 
     setLoading(true)
     setError(null)
     setResult(null)
 
     try {
-      const response = await fetch('https://itsKrish01-emotion-checker.hf.space/api/v1/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      })
-
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please wait a moment and try again (30 requests/minute).')
-      }
-
-      if (response.status === 404) {
-        throw new Error('API endpoint not found. The Hugging Face Space may be sleeping or unavailable. Please try again in a few moments.')
-      }
-
-      if (response.status === 405) {
-        throw new Error('Method not allowed. Please ensure the request is using POST.')
-      }
-
-      if (!response.ok) {
-        throw new Error(`Analysis failed with status: ${response.status}`)
-      }
-
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('The API returned an invalid response. The Hugging Face Space may be starting up. Please try again in a few moments.')
-      }
-
-      const data: AnalysisResult = await response.json()
-      setResult(data)
-    } catch (err) {
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        setError('Network error. Please check your internet connection.')
-      } else {
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-      }
+      const res = await analyzer.analyze(text)
+      setResult(res)
+    } catch (err: any) {
+      setError(err.message || 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -94,276 +299,189 @@ function App() {
     }
   }
 
-  const clearAll = () => {
-    setText('')
-    setResult(null)
-    setError(null)
-  }
-
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col">
-      {/* Header */}
-      <header className="border-b border-zinc-200 bg-white sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-white">
+      {/* Navbar */}
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-zinc-200/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-zinc-900 flex items-center justify-center">
-                <span className="text-lg sm:text-xl">🎭</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-white text-sm font-bold shadow-sm">
+                ED
               </div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-zinc-950">
-                  Emotion Analyzer
-                </h1>
-                <p className="text-xs text-zinc-500 hidden sm:block">
-                  AI-powered emotional tone detection
-                </p>
+              <span className="text-base font-semibold text-zinc-900 hidden sm:block">emotion-detector-js</span>
+            </div>
+
+            {/* Center - Version Badge */}
+            <div className="hidden md:flex items-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-600 bg-zinc-100 rounded-full border border-zinc-200">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                v{npmVersion}
               </div>
             </div>
-            {(text || result) && (
-              <button
-                onClick={clearAll}
-                className="text-xs sm:text-sm text-zinc-500 hover:text-zinc-900 transition-colors px-3 py-1.5 rounded-md hover:bg-zinc-100"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 flex-1">
-        {/* Input Section */}
-        <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6">
-            <label htmlFor="text-input" className="block text-sm font-medium text-zinc-700 mb-2">
-              Enter your text
-            </label>
-            <textarea
-              id="text-input"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type or paste the text you want to analyze..."
-              className="w-full h-28 sm:h-36 p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-lg text-zinc-950 placeholder-zinc-400 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent resize-none transition-all"
-            />
-            <div className="flex items-center justify-between mt-4 gap-4">
-              <div className="flex items-center gap-2 text-zinc-400">
-                <svg className="h-4 w-4 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            {/* Right - Links */}
+            <div className="flex items-center gap-2">
+              <a
+                href="#documentation"
+                className="px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-950 transition-colors"
+              >
+                Docs
+              </a>
+              <a
+                href="https://www.npmjs.com/package/emotion-detector-js"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 text-sm font-medium text-zinc-600 hover:text-zinc-950 transition-colors hidden sm:block"
+              >
+                NPM
+              </a>
+              <a
+                href="https://github.com/Itskrish01/emotion-detector-js"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-950 text-white text-sm font-medium rounded-lg hover:bg-zinc-800 transition-all shadow-sm hover:shadow-md"
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
                 </svg>
-                <span className="text-xs">
-                  <span className="hidden sm:inline">Press </span>Ctrl+Enter
-                </span>
-              </div>
-              <button
-                onClick={analyzeEmotion}
-                disabled={loading || !text.trim()}
-                className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all disabled:cursor-not-allowed active:scale-[0.98]"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    <span>Analyzing...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    <span>Analyze</span>
-                  </>
-                )}
-              </button>
+                <span className="hidden sm:inline">GitHub</span>
+              </a>
             </div>
           </div>
         </div>
+      </nav>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 sm:p-5 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-              <svg className="h-4 w-4 text-red-600" viewBox="0 0 16 16" fill="currentColor">
-                <path fillRule="evenodd" d="M8 15A7 7 0 108 1a7 7 0 000 14zM8 4a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 4zm0 8a1 1 0 100-2 1 1 0 000 2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-red-800">Analysis Failed</h3>
-              <p className="text-sm text-red-600 mt-0.5">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Results Section */}
-        {result && (
-          <div className="mt-6 space-y-4 sm:space-y-6">
-            {/* Primary Emotion Card */}
-            <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-zinc-100 bg-zinc-50/50">
-                <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Primary Emotion Detected</h2>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
+          <div className="grid lg:grid-cols-12 gap-16 items-center">
+            {/* Left Content */}
+            <div className="lg:col-span-6 text-center lg:text-left">
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-zinc-950 mb-8 leading-[1.1]">
+                Emotion detection <br className="hidden lg:block" />
+                <span className="text-zinc-400">made simple.</span>
+              </h1>
+              <p className="text-xl text-zinc-600 mb-10 max-w-2xl mx-auto lg:mx-0 leading-relaxed font-light">
+                A lightweight, zero-dependency TypeScript client for accurate emotion analysis.
+                Seamlessly works in Node.js and browsers.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                <div className="group relative flex items-center gap-3 px-5 py-3 bg-zinc-50 rounded-xl border border-zinc-200 font-mono text-sm text-zinc-600 shadow-sm hover:border-zinc-300 transition-all cursor-pointer"
+                  onClick={() => navigator.clipboard.writeText('npm install emotion-detector-js')}>
+                  <span className="text-zinc-400 select-none">$</span>
+                  <span className="select-all">npm install emotion-detector-js</span>
+                  <CopyButton text="npm install emotion-detector-js" className="ml-2 p-1.5 bg-white border border-zinc-200 rounded-md shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
-              <div className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-                  <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-zinc-100 flex items-center justify-center shrink-0 mx-auto sm:mx-0">
-                    <span className="text-4xl sm:text-5xl">
-                      {emotionEmojis[result.primary_emotion] || '🤔'}
-                    </span>
-                  </div>
-                  <div className="text-center sm:text-left flex-1">
-                    <p className="text-2xl sm:text-3xl font-semibold text-zinc-950 capitalize">
-                      {result.primary_emotion}
-                    </p>
-                    <p className="text-zinc-500 text-sm mt-1">
-                      {emotionDescriptions[result.primary_emotion] || 'Detected emotion'}
-                    </p>
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
-                        <span>Confidence Level</span>
-                        <span className="font-medium text-zinc-900 tabular-nums">{(result.confidence * 100).toFixed(1)}%</span>
+            </div>
+
+            {/* Interactive Demo Card */}
+            <div id="demo" className="lg:col-span-6">
+      <div className="relative rounded-2xl bg-white shadow-2xl border border-zinc-200 overflow-hidden ring-1 ring-zinc-950/5">
+        <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3 flex items-center justify-between">
+          <div className="flex gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
+            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
+            <div className="w-3 h-3 rounded-full bg-zinc-300"></div>
+          </div>
+          <div className="text-xs font-mono text-zinc-400">playground.ts</div>
+        </div>
+
+        <div className="p-6">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type something emotional here..."
+            className="w-full h-32 p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent transition-all resize-none font-medium"
+          />
+
+          <div className="mt-4 flex items-center justify-between">
+            <span className="text-xs text-zinc-400 font-medium">Press Ctrl+Enter to analyze</span>
+            <button
+              onClick={analyzeEmotion}
+              disabled={loading || !text.trim()}
+              className="px-5 py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-2"
+            >
+              {loading ? 'Analyzing...' : 'Analyze Text'}
+            </button>
+          </div>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 font-medium">
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div className="mt-6 pt-6 border-t border-zinc-100 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-5 mb-6">
+                <div className="h-16 w-16 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-3xl shadow-sm">
+                  {emotionEmojis[result.primaryEmotion] || '🤔'}
+                </div>
+                <div>
+                  <div className="text-xs text-zinc-400 font-bold uppercase tracking-widest mb-1">Primary Emotion</div>
+                  <div className="text-2xl font-bold text-zinc-950 capitalize">{result.primaryEmotion}</div>
+                  <div className="text-sm text-zinc-500 font-medium mt-0.5">{(result.confidence * 100).toFixed(1)}% Confidence</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {result.allEmotions
+                  .sort((a, b) => b.score - a.score)
+                  .slice(0, 3)
+                  .map((item) => (
+                    <div key={item.emotion} className="group">
+                      <div className="flex justify-between text-sm mb-1.5">
+                        <span className="font-medium text-zinc-700 capitalize">{item.emotion}</span>
+                        <span className="text-zinc-500 font-mono text-xs">{(item.score * 100).toFixed(1)}%</span>
                       </div>
-                      <div className="h-2.5 bg-zinc-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-zinc-900 transition-all duration-700 ease-out rounded-full"
-                          style={{ width: `${result.confidence * 100}%` }}
+                          className="h-full bg-zinc-900 rounded-full transition-all duration-500"
+                          style={{ width: `${item.score * 100}%` }}
                         />
                       </div>
                     </div>
-                  </div>
-                </div>
+                  ))}
               </div>
             </div>
-
-            {/* All Emotions Chart */}
-            <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-zinc-100 bg-zinc-50/50">
-                <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Complete Breakdown</h2>
-              </div>
-              <div className="p-4 sm:p-6">
-                <div className="grid gap-4 sm:gap-5">
-                  {result.all_emotions
-                    .sort((a, b) => b.score - a.score)
-                    .map((item, index) => (
-                      <div 
-                        key={item.emotion} 
-                        className="group"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-zinc-100 group-hover:bg-zinc-200 flex items-center justify-center transition-colors">
-                            <span className="text-base sm:text-lg">{emotionEmojis[item.emotion] || '🤔'}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium text-zinc-800 capitalize truncate">
-                                {item.emotion}
-                              </span>
-                              <span className="text-xs font-medium text-zinc-600 tabular-nums shrink-0">
-                                {(item.score * 100).toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden mt-1.5">
-                              <div
-                                className="h-full bg-zinc-400 group-hover:bg-zinc-600 transition-all duration-500 ease-out rounded-full"
-                                style={{ width: `${item.score * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!result && !error && !loading && (
-          <div className="mt-12 sm:mt-16 text-center">
-            <div className="inline-flex items-center justify-center h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-zinc-100 mb-4">
-              <span className="text-3xl sm:text-4xl">✨</span>
-            </div>
-            <h3 className="text-base sm:text-lg font-medium text-zinc-700">Ready to analyze</h3>
-            <p className="text-sm text-zinc-500 mt-1 max-w-sm mx-auto">
-              Enter some text above and click analyze to discover its emotional tone
-            </p>
-          </div>
-        )}
-
-        {/* About Section */}
-        <div className="mt-12 sm:mt-16 rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-zinc-100 bg-zinc-50/50">
-            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">About This Tool</h2>
-          </div>
-          <div className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-8">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
-                  </svg>
-                  <h3 className="text-sm font-medium text-zinc-800">AI Model</h3>
-                </div>
-                <p className="text-sm text-zinc-600 leading-relaxed">
-                  Powered by{' '}
-                  <a 
-                    href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-zinc-900 font-medium underline underline-offset-2 hover:text-zinc-600 transition-colors"
-                  >
-                    DistilRoBERTa-base
-                  </a>
-                  , a fine-tuned transformer model trained on 6 diverse datasets for emotion classification.
-                </p>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
-                  </svg>
-                  <h3 className="text-sm font-medium text-zinc-800">Backend</h3>
-                </div>
-                <p className="text-sm text-zinc-600 leading-relaxed">
-                  Built with{' '}
-                  <span className="text-zinc-900 font-medium">FastAPI</span>
-                  {' '}and{' '}
-                  <span className="text-zinc-900 font-medium">Python</span>
-                  , deployed on Hugging Face Spaces for fast, reliable emotion detection.
-                </p>
-              </div>
+          )}
+        </div>
+      </div>
             </div>
           </div>
         </div>
-      </main>
+      </section>
+
+      {/* Documentation Section (Dynamic README) */}
+      <section id="documentation" className="py-24 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="prose prose-zinc max-w-none">
+            <MarkdownRenderer content={readmeContent} />
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-200 bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400">
-            <div className="flex items-center gap-4">
-              <span>Rate limit: 30 req/min</span>
-              <span className="hidden sm:inline">•</span>
-              <a 
-                href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-zinc-600 transition-colors"
-              >
-                View Model ↗
-              </a>
+      <footer className="bg-zinc-50 border-t border-zinc-200 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-5 w-5 items-center justify-center rounded bg-zinc-950 text-white text-[10px] font-bold">
+              ED
             </div>
-            <p className="flex items-center gap-1.5">
-              <span>Built with</span>
-              <span className="text-zinc-600">React</span>
-              <span>•</span>
-              <span className="text-zinc-600">FastAPI</span>
-              <span>•</span>
-              <span className="text-zinc-600">🤗 Transformers</span>
-            </p>
+            <span className="text-sm font-medium text-zinc-700">emotion-detector-js</span>
           </div>
+          <div className="flex items-center gap-5 text-sm text-zinc-500">
+            <a href="https://www.npmjs.com/package/emotion-detector-js" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">NPM</a>
+            <a href="https://github.com/Itskrish01/emotion-detector-js" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">GitHub</a>
+            <a href="https://huggingface.co/j-hartmann/emotion-english-distilroberta-base" target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900 transition-colors">Model</a>
+          </div>
+          <p className="text-sm text-zinc-400">
+            © {new Date().getFullYear()} <a href="https://krishtasood.in" target="_blank" rel="noopener noreferrer" className="text-zinc-600 hover:text-zinc-900 transition-colors">itskrish01</a>. MIT License.
+          </p>
         </div>
       </footer>
     </div>

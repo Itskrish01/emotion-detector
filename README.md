@@ -1,129 +1,273 @@
-# 🎭 Emotion Tone Analyzer
+# emotion-detector-js
 
-An AI-powered web application that analyzes the emotional tone of text using advanced natural language processing. Detect joy, sadness, anger, fear, surprise, disgust, and neutral emotions with confidence scores.
+A simple JavaScript/TypeScript client for the Emotion Tone Analyzer API. Works seamlessly in Node.js and browser environments with zero dependencies.
 
-![Emotion Analyzer Demo](https://img.shields.io/badge/demo-live-brightgreen)
-![React](https://img.shields.io/badge/React-19.2-blue)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+## How It Works
 
-## ✨ Features
+This package connects to an emotion detection API built with **Python** and **FastAPI**, powered by a pre-trained [DistilRoBERTa](https://huggingface.co/j-hartmann/emotion-english-distilroberta-base) model. The API is hosted on Hugging Face Spaces:
 
-- **Real-time Emotion Detection** - Analyze text and get instant emotion predictions
-- **7 Emotion Categories** - Joy 😊, Sadness 😢, Anger 😠, Fear 😨, Surprise 😲, Disgust 🤢, Neutral 😐
-- **Confidence Scores** - See how confident the AI is in its predictions
-- **Complete Breakdown** - View all emotion scores in a visual bar chart
-- **Modern UI** - Clean, responsive design with shadcn-inspired aesthetics
-- **Fast & Free** - No sign-up required, instant results
+🤗 **[Live API on Hugging Face](https://huggingface.co/spaces/itsKrish01/emotion-checker)**
 
-## 🚀 Live Demo
+The model detects 7 emotions: joy, sadness, anger, fear, surprise, disgust, and neutral.
 
-**[Try the Emotion Analyzer →](https://text-emotion-detector.netlify.app/)**
+## Features
 
-## 🛠️ Tech Stack
+- 🎯 **Simple API** - Easy to use `analyze()` and `analyzeBatch()` methods
+- 📦 **Zero Dependencies** - Uses native `fetch` API
+- 🔷 **TypeScript Support** - Full type definitions included
+- 🌐 **Universal** - Works in Node.js (18+) and browsers
+- ⚡ **Dual Module** - ESM and CommonJS support
+- 🛡️ **Built-in Validation** - Automatic word count validation before API calls
+- 🔧 **Configurable** - Custom base URL for self-hosted instances
 
-### Frontend
-- **React 19** - Modern React with hooks
-- **TypeScript** - Type-safe development
-- **Tailwind CSS 4** - Utility-first styling
-- **Vite** - Lightning-fast build tool
-
-### Backend
-- **FastAPI** - High-performance Python API
-- **Hugging Face Transformers** - State-of-the-art NLP
-- **DistilRoBERTa** - Fine-tuned emotion classification model
-
-## 🧠 AI Model
-
-This app uses the [j-hartmann/emotion-english-distilroberta-base](https://huggingface.co/j-hartmann/emotion-english-distilroberta-base) model, a DistilRoBERTa-base model fine-tuned on 6 diverse datasets for emotion classification in English text.
-
-## 📦 Installation
+## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/Itskrish01/emotion-detector.git
-
-# Navigate to the project
-cd emotion-detector
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
+npm install emotion-detector-js
 ```
 
-## 🔧 API Reference
-
-### Analyze Emotion
-
-```http
-POST https://itsKrish01-emotion-checker.hf.space/api/v1/analyze
+```bash
+yarn add emotion-detector-js
 ```
 
-**Request Body:**
-```json
-{
-  "text": "I'm so happy today!"
+```bash
+pnpm add emotion-detector-js
+```
+
+## Quick Start
+
+```javascript
+import { EmotionAnalyzer } from 'emotion-detector-js';
+
+const analyzer = new EmotionAnalyzer();
+
+// Analyze a single text
+const result = await analyzer.analyze("I'm so happy today!");
+console.log(result.primaryEmotion); // "joy"
+console.log(result.confidence);     // 0.95
+```
+
+## Usage
+
+### Single Text Analysis
+
+```typescript
+import { EmotionAnalyzer } from 'emotion-detector-js';
+
+const analyzer = new EmotionAnalyzer();
+
+const result = await analyzer.analyze("I'm feeling great about this project!");
+
+console.log(result);
+// {
+//   primaryEmotion: "joy",
+//   confidence: 0.92,
+//   allEmotions: [
+//     { emotion: "joy", score: 0.92 },
+//     { emotion: "surprise", score: 0.05 },
+//     { emotion: "neutral", score: 0.03 }
+//   ]
+// }
+```
+
+### Batch Analysis
+
+Analyze multiple texts in a single request:
+
+```typescript
+const results = await analyzer.analyzeBatch([
+  "I'm so excited about the new features!",
+  "This is really frustrating.",
+  "I don't know what to think about this."
+]);
+
+console.log(results.count); // 3
+results.results.forEach((result, index) => {
+  console.log(`Text ${index + 1}: ${result.primaryEmotion} (${result.confidence})`);
+});
+```
+
+### Configuration Options
+
+```typescript
+const analyzer = new EmotionAnalyzer({
+  // Custom base URL for self-hosted instances
+  baseUrl: 'https://your-custom-url.com',
+  
+  // Request timeout in milliseconds (default: 30000)
+  timeout: 10000
+});
+```
+
+### Error Handling
+
+The library provides specific error classes for different failure scenarios:
+
+```typescript
+import { 
+  EmotionAnalyzer, 
+  ValidationError, 
+  RateLimitError, 
+  ApiError,
+  TimeoutError,
+  NetworkError 
+} from 'emotion-detector-js';
+
+const analyzer = new EmotionAnalyzer();
+
+try {
+  const result = await analyzer.analyze("Your text here");
+} catch (error) {
+  if (error instanceof ValidationError) {
+    // Input validation failed (e.g., text too long)
+    console.error('Validation error:', error.message);
+    console.error('Field:', error.field);
+  } else if (error instanceof RateLimitError) {
+    // Rate limit exceeded (429)
+    console.error('Rate limit exceeded. Retry after:', error.retryAfter, 'seconds');
+  } else if (error instanceof ApiError) {
+    // API returned an error
+    console.error('API error:', error.message);
+    console.error('Status code:', error.statusCode);
+  } else if (error instanceof TimeoutError) {
+    // Request timed out
+    console.error('Request timed out after:', error.timeout, 'ms');
+  } else if (error instanceof NetworkError) {
+    // Network error occurred
+    console.error('Network error:', error.message);
+  }
 }
 ```
 
-**Response:**
-```json
+## API Constraints
+
+| Constraint | Single Analysis | Batch Analysis |
+|------------|-----------------|----------------|
+| Max words per text | 100 | 100 |
+| Max texts | 1 | 10 |
+| Rate limit | 30 req/min | 10 req/min |
+
+## API Reference
+
+### `EmotionAnalyzer`
+
+#### Constructor
+
+```typescript
+new EmotionAnalyzer(options?: EmotionAnalyzerOptions)
+```
+
+**Options:**
+- `baseUrl?: string` - Custom API base URL (default: `https://itsKrish01-emotion-checker.hf.space`)
+- `timeout?: number` - Request timeout in milliseconds (default: `30000`)
+
+#### Methods
+
+`analyze(text: string): Promise<EmotionResult>`
+
+Analyze a single text for emotion.
+
+**Parameters:**
+- `text` - The text to analyze (max 100 words)
+
+**Returns:** `EmotionResult`
+```typescript
 {
-  "primary_emotion": "joy",
-  "confidence": 0.95,
-  "all_emotions": [
-    { "emotion": "joy", "score": 0.95 },
-    { "emotion": "surprise", "score": 0.02 },
-    { "emotion": "neutral", "score": 0.01 },
-    { "emotion": "sadness", "score": 0.01 },
-    { "emotion": "anger", "score": 0.005 },
-    { "emotion": "fear", "score": 0.003 },
-    { "emotion": "disgust", "score": 0.002 }
-  ]
+  primaryEmotion: string;  // The detected primary emotion
+  confidence: number;      // Confidence score (0-1)
+  allEmotions: Array<{     // All detected emotions
+    emotion: string;
+    score: number;
+  }>;
 }
 ```
 
-**Rate Limit:** 30 requests per minute
+`analyzeBatch(texts: string[]): Promise<BatchEmotionResult>`
 
-## 📁 Project Structure
+Analyze multiple texts in a batch.
 
-```
-emotion-detector/
-├── public/
-├── src/
-│   ├── App.tsx        # Main application component
-│   ├── main.tsx       # Entry point
-│   └── index.css      # Global styles
-├── index.html         # HTML template with SEO
-├── package.json
-├── tailwind.config.js
-├── tsconfig.json
-└── vite.config.ts
+**Parameters:**
+- `texts` - Array of texts to analyze (max 10 texts, 100 words each)
+
+**Returns:** `BatchEmotionResult`
+```typescript
+{
+  results: EmotionResult[];  // Array of results for each input text
+  count: number;             // Number of texts analyzed
+}
 ```
 
-## 🤝 Contributing
+### Error Classes
 
-Contributions are welcome! Feel free to:
+| Error Class | Description |
+|-------------|-------------|
+| `EmotionAnalyzerError` | Base error class |
+| `ValidationError` | Input validation failed |
+| `RateLimitError` | Rate limit exceeded (HTTP 429) |
+| `ApiError` | API returned an error response |
+| `TimeoutError` | Request timed out |
+| `NetworkError` | Network connection error |
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Usage with React
 
-## 📄 License
+```jsx
+import { useState } from 'react';
+import { EmotionAnalyzer, ValidationError, RateLimitError } from 'emotion-detector-js';
 
-This project is open source and available under the [MIT License](LICENSE).
+const analyzer = new EmotionAnalyzer();
 
-## 🙏 Acknowledgments
+function EmotionDetector() {
+  const [text, setText] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-- [Hugging Face](https://huggingface.co/) for hosting the model and API
-- [j-hartmann](https://huggingface.co/j-hartmann) for the emotion classification model
-- [shadcn/ui](https://ui.shadcn.com/) for design inspiration
+  const handleAnalyze = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await analyzer.analyze(text);
+      setResult(result);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        setError(`Validation error: ${err.message}`);
+      } else if (err instanceof RateLimitError) {
+        setError('Too many requests. Please wait a moment.');
+      } else {
+        setError('An error occurred. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
----
+  return (
+    <div>
+      <textarea 
+        value={text} 
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Enter text to analyze..."
+      />
+      <button onClick={handleAnalyze} disabled={loading}>
+        {loading ? 'Analyzing...' : 'Analyze Emotion'}
+      </button>
+      
+      {error && <p className="error">{error}</p>}
+      
+      {result && (
+        <div>
+          <h3>Result:</h3>
+          <p>Emotion: {result.primaryEmotion}</p>
+          <p>Confidence: {(result.confidence * 100).toFixed(1)}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+```
 
-Made with ❤️ by [Krish](https://github.com/Itskrish01)
+## Requirements
+
+- Node.js 18+ (for native fetch support) or browser environment
+- For older Node.js versions, you'll need a fetch polyfill
