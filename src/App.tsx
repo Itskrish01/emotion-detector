@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo, useCallback, useMemo } from 'react'
 import { EmotionAnalyzer } from 'emotion-detector-js'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -28,17 +28,17 @@ const emotionEmojis: Record<string, string> = {
   neutral: '😐',
 }
 
-// Code Block Component with Copy Button
-const CodeBlock = ({ children, className }: { children: string, className?: string }) => {
+// Memoized Code Block Component with Copy Button
+const CodeBlock = memo(({ children, className }: { children: string, className?: string }) => {
   const [copied, setCopied] = useState(false)
   const match = /language-(\w+)/.exec(className || '')
   const language = match ? match[1] : 'text'
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(children)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
+  }, [children])
 
   return (
     <div className="my-4 sm:my-6 rounded-lg sm:rounded-xl bg-zinc-50 border border-zinc-200 overflow-hidden shadow-sm group">
@@ -95,152 +95,155 @@ const CodeBlock = ({ children, className }: { children: string, className?: stri
       </div>
     </div>
   )
-}
+})
 
-// Markdown Renderer Component using react-markdown
-const MarkdownRenderer = ({ content }: { content: string }) => {
+// Memoized Markdown Renderer Component - prevents re-renders when content is static
+const MarkdownRenderer = memo(({ content }: { content: string }) => {
+  // Memoize the components object to prevent recreation on each render
+  const components = useMemo(() => ({
+    // Headers
+    h1: ({ children }: { children: React.ReactNode }) => (
+      <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-zinc-950 mt-10 sm:mt-16 mb-6 sm:mb-8 pb-3 sm:pb-4 border-b border-zinc-200">
+        {children}
+      </h1>
+    ),
+    h2: ({ children }: { children: React.ReactNode }) => (
+      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-950 mt-8 sm:mt-12 mb-4 sm:mb-6 flex items-center gap-2">
+        <span className="text-zinc-300 text-lg sm:text-xl hidden sm:inline">#</span> {children}
+      </h2>
+    ),
+    h3: ({ children }: { children: React.ReactNode }) => (
+      <h3 className="text-lg sm:text-xl font-semibold text-zinc-900 mt-6 sm:mt-8 mb-3 sm:mb-4">
+        {children}
+      </h3>
+    ),
+    h4: ({ children }: { children: React.ReactNode }) => (
+      <h4 className="text-base sm:text-lg font-medium text-zinc-900 mt-4 sm:mt-6 mb-2 sm:mb-3">
+        {children}
+      </h4>
+    ),
+    // Paragraph
+    p: ({ children }: { children: React.ReactNode }) => (
+      <p className="text-zinc-600 text-sm sm:text-base leading-6 sm:leading-7 mb-3 sm:mb-4">
+        {children}
+      </p>
+    ),
+    // Links
+    a: ({ href, children }: { href?: string; children: React.ReactNode }) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all"
+      >
+        {children}
+      </a>
+    ),
+    // Lists
+    ul: ({ children }: { children: React.ReactNode }) => (
+      <ul className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1">
+        {children}
+      </ul>
+    ),
+    ol: ({ children }: { children: React.ReactNode }) => (
+      <ol className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1 list-decimal list-inside">
+        {children}
+      </ol>
+    ),
+    li: ({ children }: { children: React.ReactNode }) => (
+      <li className="text-zinc-600 text-sm sm:text-base relative pl-4 sm:pl-6">
+        <span className="absolute left-0 top-2 sm:top-2.5 w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+        {children}
+      </li>
+    ),
+    // Inline code
+    code: ({ className, children }: { className?: string; children: React.ReactNode }) => {
+      const isCodeBlock = className?.includes('language-')
+      const codeString = String(children).replace(/\n$/, '')
+
+      if (isCodeBlock) {
+        return <CodeBlock className={className}>{codeString}</CodeBlock>
+      }
+
+      return (
+        <code className="px-1 sm:px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs sm:text-sm font-mono text-zinc-800">
+          {children}
+        </code>
+      )
+    },
+    // Pre tag for code blocks
+    pre: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    // Strong/Bold
+    strong: ({ children }: { children: React.ReactNode }) => (
+      <strong className="font-semibold text-zinc-950">{children}</strong>
+    ),
+    // Emphasis/Italic
+    em: ({ children }: { children: React.ReactNode }) => (
+      <em className="italic text-zinc-700">{children}</em>
+    ),
+    // Blockquote
+    blockquote: ({ children }: { children: React.ReactNode }) => (
+      <blockquote className="border-l-4 border-zinc-300 pl-3 sm:pl-4 py-1 my-4 sm:my-6 text-zinc-600 italic bg-zinc-50 rounded-r-lg">
+        {children}
+      </blockquote>
+    ),
+    // Horizontal rule
+    hr: () => <hr className="my-6 sm:my-8 border-zinc-200" />,
+    // Table
+    table: ({ children }: { children: React.ReactNode }) => (
+      <div className="overflow-x-auto my-4 sm:my-6 -mx-4 sm:mx-0 px-4 sm:px-0">
+        <table className="min-w-full divide-y divide-zinc-200 border border-zinc-200 rounded-lg overflow-hidden text-sm">
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children }: { children: React.ReactNode }) => (
+      <thead className="bg-zinc-50">{children}</thead>
+    ),
+    tbody: ({ children }: { children: React.ReactNode }) => (
+      <tbody className="divide-y divide-zinc-100 bg-white">{children}</tbody>
+    ),
+    tr: ({ children }: { children: React.ReactNode }) => <tr>{children}</tr>,
+    th: ({ children }: { children: React.ReactNode }) => (
+      <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-zinc-900 uppercase tracking-wider whitespace-nowrap">
+        {children}
+      </th>
+    ),
+    td: ({ children }: { children: React.ReactNode }) => (
+      <td className="px-3 sm:px-4 py-2 sm:py-3 text-zinc-600 text-xs sm:text-sm">
+        {children}
+      </td>
+    ),
+    // Images
+    img: ({ src, alt }: { src?: string; alt?: string }) => (
+      <img
+        src={src}
+        alt={alt || ''}
+        className="rounded-lg shadow-sm border border-zinc-200 my-4 sm:my-6 max-w-full h-auto"
+      />
+    ),
+  }), [])
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      components={{
-        // Headers
-        h1: ({ children }) => (
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-zinc-950 mt-10 sm:mt-16 mb-6 sm:mb-8 pb-3 sm:pb-4 border-b border-zinc-200">
-            {children}
-          </h1>
-        ),
-        h2: ({ children }) => (
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-950 mt-8 sm:mt-12 mb-4 sm:mb-6 flex items-center gap-2">
-            <span className="text-zinc-300 text-lg sm:text-xl hidden sm:inline">#</span> {children}
-          </h2>
-        ),
-        h3: ({ children }) => (
-          <h3 className="text-lg sm:text-xl font-semibold text-zinc-900 mt-6 sm:mt-8 mb-3 sm:mb-4">
-            {children}
-          </h3>
-        ),
-        h4: ({ children }) => (
-          <h4 className="text-base sm:text-lg font-medium text-zinc-900 mt-4 sm:mt-6 mb-2 sm:mb-3">
-            {children}
-          </h4>
-        ),
-        // Paragraph
-        p: ({ children }) => (
-          <p className="text-zinc-600 text-sm sm:text-base leading-6 sm:leading-7 mb-3 sm:mb-4">
-            {children}
-          </p>
-        ),
-        // Links
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-950 font-medium underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-950 transition-all"
-          >
-            {children}
-          </a>
-        ),
-        // Lists
-        ul: ({ children }) => (
-          <ul className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1">
-            {children}
-          </ul>
-        ),
-        ol: ({ children }) => (
-          <ol className="space-y-1.5 sm:space-y-2 my-3 sm:my-4 ml-1 list-decimal list-inside">
-            {children}
-          </ol>
-        ),
-        li: ({ children }) => (
-          <li className="text-zinc-600 text-sm sm:text-base relative pl-4 sm:pl-6">
-            <span className="absolute left-0 top-2 sm:top-2.5 w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
-            {children}
-          </li>
-        ),
-        // Inline code
-        code: ({ className, children }) => {
-          const isCodeBlock = className?.includes('language-')
-          const codeString = String(children).replace(/\n$/, '')
-          
-          if (isCodeBlock) {
-            return <CodeBlock className={className}>{codeString}</CodeBlock>
-          }
-          
-          return (
-            <code className="px-1 sm:px-1.5 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs sm:text-sm font-mono text-zinc-800">
-              {children}
-            </code>
-          )
-        },
-        // Pre tag for code blocks
-        pre: ({ children }) => <>{children}</>,
-        // Strong/Bold
-        strong: ({ children }) => (
-          <strong className="font-semibold text-zinc-950">{children}</strong>
-        ),
-        // Emphasis/Italic
-        em: ({ children }) => (
-          <em className="italic text-zinc-700">{children}</em>
-        ),
-        // Blockquote
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-4 border-zinc-300 pl-3 sm:pl-4 py-1 my-4 sm:my-6 text-zinc-600 italic bg-zinc-50 rounded-r-lg">
-            {children}
-          </blockquote>
-        ),
-        // Horizontal rule
-        hr: () => <hr className="my-6 sm:my-8 border-zinc-200" />,
-        // Table
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-4 sm:my-6 -mx-4 sm:mx-0 px-4 sm:px-0">
-            <table className="min-w-full divide-y divide-zinc-200 border border-zinc-200 rounded-lg overflow-hidden text-sm">
-              {children}
-            </table>
-          </div>
-        ),
-        thead: ({ children }) => (
-          <thead className="bg-zinc-50">{children}</thead>
-        ),
-        tbody: ({ children }) => (
-          <tbody className="divide-y divide-zinc-100 bg-white">{children}</tbody>
-        ),
-        tr: ({ children }) => <tr>{children}</tr>,
-        th: ({ children }) => (
-          <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-semibold text-zinc-900 uppercase tracking-wider whitespace-nowrap">
-            {children}
-          </th>
-        ),
-        td: ({ children }) => (
-          <td className="px-3 sm:px-4 py-2 sm:py-3 text-zinc-600 text-xs sm:text-sm">
-            {children}
-          </td>
-        ),
-        // Images
-        img: ({ src, alt }) => (
-          <img
-            src={src}
-            alt={alt || ''}
-            className="rounded-lg shadow-sm border border-zinc-200 my-4 sm:my-6 max-w-full h-auto"
-          />
-        ),
-      }}
+      components={components}
     >
       {content}
     </ReactMarkdown>
   )
-}
+})
 
-// Install Command Copy Button Component
-const InstallCopyButton = () => {
+// Memoized Install Command Copy Button Component
+const InstallCopyButton = memo(() => {
   const [copied, setCopied] = useState(false)
   const command = 'npm install emotion-detector-js'
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(command)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
+  }, [])
 
   return (
     <button
@@ -268,13 +271,124 @@ const InstallCopyButton = () => {
       </span>
     </button>
   )
-}
+})
 
-function App() {
+// Isolated Emotion Demo Component - state changes here don't re-render the whole App
+const EmotionDemo = memo(() => {
   const [text, setText] = useState('')
   const [result, setResult] = useState<EmotionResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const analyzeEmotion = useCallback(async () => {
+    if (!text.trim()) return
+
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      const res = await analyzer.analyze(text)
+      setResult(res)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }, [text])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      analyzeEmotion()
+    }
+  }, [analyzeEmotion])
+
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value)
+  }, [])
+
+  // Memoize sorted emotions to prevent recalculation
+  const sortedEmotions = useMemo(() => {
+    if (!result) return []
+    return result.allEmotions
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+  }, [result])
+
+  return (
+    <div className="relative rounded-xl sm:rounded-2xl bg-white shadow-xl sm:shadow-2xl border border-zinc-200 overflow-hidden ring-1 ring-zinc-950/5">
+      <div className="bg-zinc-50 border-b border-zinc-200 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+        <div className="flex gap-1.5">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
+        </div>
+        <div className="text-xs font-mono text-zinc-400">playground.ts</div>
+      </div>
+
+      <div className="p-4 sm:p-6">
+        <textarea
+          value={text}
+          onChange={handleTextChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Type something emotional here..."
+          className="w-full h-24 sm:h-32 p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-lg sm:rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent transition-all resize-none font-medium text-sm sm:text-base"
+        />
+
+        <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
+          <span className="text-xs text-zinc-400 font-medium text-center sm:text-left hidden sm:block">Press Ctrl+Enter to analyze</span>
+          <button
+            onClick={analyzeEmotion}
+            disabled={loading || !text.trim()}
+            className="px-4 sm:px-5 py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+          >
+            {loading ? 'Analyzing...' : 'Analyze Text'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 font-medium">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-zinc-100 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center gap-3 sm:gap-5 mb-4 sm:mb-6">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-2xl sm:text-3xl shadow-sm shrink-0">
+                {emotionEmojis[result.primaryEmotion] || '🤔'}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-bold uppercase tracking-widest mb-0.5 sm:mb-1">Primary Emotion</div>
+                <div className="text-lg sm:text-2xl font-bold text-zinc-950 capitalize truncate">{result.primaryEmotion}</div>
+                <div className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">{(result.confidence * 100).toFixed(1)}% Confidence</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 sm:space-y-3">
+              {sortedEmotions.map((item) => (
+                <div key={item.emotion} className="group">
+                  <div className="flex justify-between text-xs sm:text-sm mb-1 sm:mb-1.5">
+                    <span className="font-medium text-zinc-700 capitalize">{item.emotion}</span>
+                    <span className="text-zinc-500 font-mono text-[10px] sm:text-xs">{(item.score * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1.5 sm:h-2 bg-zinc-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-zinc-900 rounded-full transition-all duration-500"
+                      style={{ width: `${item.score * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+})
+
+function App() {
   const [npmVersion, setNpmVersion] = useState<string>('1.0.1')
 
   // Fetch npm version with caching
@@ -316,29 +430,6 @@ function App() {
 
     fetchNpmVersion()
   }, [])
-
-  const analyzeEmotion = async () => {
-    if (!text.trim()) return
-
-    setLoading(true)
-    setError(null)
-    setResult(null)
-
-    try {
-      const res = await analyzer.analyze(text)
-      setResult(res)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.ctrlKey) {
-      analyzeEmotion()
-    }
-  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -413,80 +504,9 @@ function App() {
               </div>
             </div>
 
-            {/* Interactive Demo Card */}
+            {/* Interactive Demo Card - Isolated component to prevent re-renders */}
             <div id="demo" className="lg:col-span-6">
-      <div className="relative rounded-xl sm:rounded-2xl bg-white shadow-xl sm:shadow-2xl border border-zinc-200 overflow-hidden ring-1 ring-zinc-950/5">
-        <div className="bg-zinc-50 border-b border-zinc-200 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
-            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
-            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-zinc-300"></div>
-          </div>
-          <div className="text-xs font-mono text-zinc-400">playground.ts</div>
-        </div>
-
-        <div className="p-4 sm:p-6">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type something emotional here..."
-            className="w-full h-24 sm:h-32 p-3 sm:p-4 bg-zinc-50 border border-zinc-200 rounded-lg sm:rounded-xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:border-transparent transition-all resize-none font-medium text-sm sm:text-base"
-          />
-
-          <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
-            <span className="text-xs text-zinc-400 font-medium text-center sm:text-left hidden sm:block">Press Ctrl+Enter to analyze</span>
-            <button
-              onClick={analyzeEmotion}
-              disabled={loading || !text.trim()}
-              className="px-4 sm:px-5 py-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
-            >
-              {loading ? 'Analyzing...' : 'Analyze Text'}
-            </button>
-          </div>
-
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 font-medium">
-              {error}
-            </div>
-          )}
-
-          {result && (
-            <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-zinc-100 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center gap-3 sm:gap-5 mb-4 sm:mb-6">
-                <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-2xl sm:text-3xl shadow-sm shrink-0">
-                  {emotionEmojis[result.primaryEmotion] || '🤔'}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[10px] sm:text-xs text-zinc-400 font-bold uppercase tracking-widest mb-0.5 sm:mb-1">Primary Emotion</div>
-                  <div className="text-lg sm:text-2xl font-bold text-zinc-950 capitalize truncate">{result.primaryEmotion}</div>
-                  <div className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">{(result.confidence * 100).toFixed(1)}% Confidence</div>
-                </div>
-              </div>
-
-              <div className="space-y-2 sm:space-y-3">
-                {result.allEmotions
-                  .sort((a, b) => b.score - a.score)
-                  .slice(0, 3)
-                  .map((item) => (
-                    <div key={item.emotion} className="group">
-                      <div className="flex justify-between text-xs sm:text-sm mb-1 sm:mb-1.5">
-                        <span className="font-medium text-zinc-700 capitalize">{item.emotion}</span>
-                        <span className="text-zinc-500 font-mono text-[10px] sm:text-xs">{(item.score * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="h-1.5 sm:h-2 bg-zinc-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-zinc-900 rounded-full transition-all duration-500"
-                          style={{ width: `${item.score * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+              <EmotionDemo />
             </div>
           </div>
         </div>
